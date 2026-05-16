@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SalesIQ — Analytics Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Epilogue:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #f5f3ee;
+  --surface:  #ffffff;
+  --surface2: #f0ede6;
+  --border:   #e2ddd5;
+  --ink:      #1a1714;
+  --muted:    #8a8279;
+  --accent:   #c84b31;
+  --accent2:  #e8a838;
+  --accent3:  #2d6a4f;
+  --accent4:  #3a6186;
+  --radius:   14px;
+  --shadow:   0 2px 16px rgba(26,23,20,0.08);
+  --font-head: 'Syne', sans-serif;
+  --font-body: 'Epilogue', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grain texture overlay */
+body::before {
+  content:'';
+  position:fixed;inset:0;z-index:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;opacity:0.6;
+}
+
+.app { position:relative;z-index:1;display:grid;grid-template-columns:300px 1fr;min-height:100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--ink);
+  padding: 2rem 1.5rem;
+  display: flex; flex-direction: column; gap: 1.5rem;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+
+.brand { display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem; }
+.brand-icon {
+  width:36px;height:36px;border-radius:8px;
+  background:var(--accent);
+  display:grid;place-items:center;font-size:1rem;font-weight:800;
+  color:#fff;font-family:var(--font-head);
+}
+.brand-name { font-family:var(--font-head);font-size:1.3rem;color:#fff;font-weight:700; }
+.brand-name span { color:var(--accent2); }
+
+.sidebar-label {
+  font-size:0.65rem;text-transform:uppercase;letter-spacing:0.12em;
+  color:#5a5550;font-weight:600;margin-bottom:0.5rem;
+}
+
+/* ── INPUT FORM ── */
+.form-section { display:flex;flex-direction:column;gap:0.6rem; }
+
+.input-row { display:flex;flex-direction:column;gap:0.3rem; }
+.input-label { font-size:0.72rem;color:#9a9590;font-weight:500; }
+
+input, select {
+  background:#2a2520;border:1px solid #3a3530;
+  color:#e8e4df;font-family:var(--font-body);font-size:0.85rem;
+  padding:0.55rem 0.75rem;border-radius:8px;outline:none;width:100%;
+  transition:border-color 0.2s;
+}
+input:focus,select:focus { border-color:var(--accent); }
+input::placeholder { color:#5a5550; }
+select option { background:#2a2520; }
+
+.month-grid { display:grid;grid-template-columns:1fr 1fr;gap:0.5rem; }
+.month-item { display:flex;flex-direction:column;gap:0.2rem; }
+.month-item label { font-size:0.65rem;color:#6a6560; }
+.month-item input { padding:0.4rem 0.5rem;font-size:0.8rem; }
+
+.btn-add {
+  background:var(--accent);border:none;color:#fff;
+  font-family:var(--font-head);font-size:0.82rem;font-weight:600;
+  padding:0.65rem;border-radius:8px;cursor:pointer;
+  transition:background 0.2s,transform 0.15s;letter-spacing:0.03em;
+  text-transform:uppercase;
+}
+.btn-add:hover { background:#b03d28;transform:translateY(-1px); }
+.btn-add:active { transform:translateY(0); }
+
+.btn-clear {
+  background:transparent;border:1px solid #3a3530;color:#6a6560;
+  font-family:var(--font-body);font-size:0.78rem;padding:0.5rem;
+  border-radius:8px;cursor:pointer;transition:all 0.2s;
+}
+.btn-clear:hover { border-color:#6a6560;color:#9a9590; }
+
+/* Product list in sidebar */
+.product-list { display:flex;flex-direction:column;gap:0.4rem;max-height:220px;overflow-y:auto; }
+.product-pill {
+  display:flex;align-items:center;justify-content:space-between;
+  background:#2a2520;border:1px solid #3a3530;border-radius:8px;
+  padding:0.5rem 0.75rem;font-size:0.78rem;color:#c8c4bf;
+  animation:slideIn 0.3s ease;
+}
+@keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+.product-pill .pill-name { font-weight:500;color:#e8e4df; }
+.product-pill .pill-meta { color:#6a6560;font-size:0.7rem; }
+.pill-del {
+  background:none;border:none;color:#5a5550;cursor:pointer;
+  font-size:1rem;line-height:1;padding:0 0.2rem;transition:color 0.2s;
+}
+.pill-del:hover { color:var(--accent); }
+
+.empty-state {
+  text-align:center;padding:1.5rem 0;color:#4a4540;font-size:0.8rem;line-height:1.6;
+}
+
+/* ── MAIN ── */
+.main { padding:2rem;display:flex;flex-direction:column;gap:1.5rem; }
+
+/* Top bar */
+.topbar {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+}
+.page-title { font-family:var(--font-head);font-size:1.8rem;font-weight:800;letter-spacing:-0.03em; }
+.page-title span { color:var(--accent); }
+.topbar-right { display:flex;align-items:center;gap:0.75rem; }
+.timestamp { font-size:0.75rem;color:var(--muted);font-family:var(--font-mono); }
+
+.btn-export {
+  background:var(--ink);color:#fff;border:none;
+  font-family:var(--font-head);font-size:0.78rem;font-weight:600;
+  padding:0.55rem 1.1rem;border-radius:8px;cursor:pointer;
+  text-transform:uppercase;letter-spacing:0.04em;transition:background 0.2s;
+}
+.btn-export:hover { background:#2e2a26; }
+
+/* ── KPI CARDS ── */
+.kpi-row { display:grid;grid-template-columns:repeat(4,1fr);gap:1rem; }
+
+.kpi-card {
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.25rem;
+  box-shadow:var(--shadow);position:relative;overflow:hidden;
+  transition:transform 0.2s,box-shadow 0.2s;
+}
+.kpi-card:hover { transform:translateY(-2px);box-shadow:0 8px 24px rgba(26,23,20,0.12); }
+.kpi-card::after {
+  content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+}
+.kpi-card:nth-child(1)::after { background:var(--accent); }
+.kpi-card:nth-child(2)::after { background:var(--accent2); }
+.kpi-card:nth-child(3)::after { background:var(--accent3); }
+.kpi-card:nth-child(4)::after { background:var(--accent4); }
+
+.kpi-label { font-size:0.68rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:0.5rem; }
+.kpi-value { font-family:var(--font-mono);font-size:1.8rem;font-weight:600;line-height:1;margin-bottom:0.4rem; }
+.kpi-sub { font-size:0.75rem;color:var(--muted); }
+.kpi-badge {
+  display:inline-flex;align-items:center;gap:0.2rem;
+  font-size:0.7rem;font-weight:600;padding:0.15rem 0.5rem;border-radius:999px;
+}
+.kpi-badge.up { background:rgba(45,106,79,0.1);color:var(--accent3); }
+.kpi-badge.down { background:rgba(200,75,49,0.1);color:var(--accent); }
+
+/* ── CHARTS GRID ── */
+.charts-grid { display:grid;grid-template-columns:2fr 1fr;gap:1rem; }
+.chart-card {
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.5rem;box-shadow:var(--shadow);
+}
+.chart-title {
+  font-family:var(--font-head);font-size:0.85rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.06em;color:var(--ink);
+  margin-bottom:1.2rem;display:flex;align-items:center;gap:0.5rem;
+}
+.chart-title::before {
+  content:'';display:block;width:4px;height:16px;border-radius:99px;background:var(--accent);
+}
+.chart-wrap { position:relative;height:220px; }
+
+/* ── BOTTOM GRID ── */
+.bottom-grid { display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x:auto; }
+table { width:100%;border-collapse:collapse;font-size:0.82rem; }
+th {
+  text-align:left;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;
+  color:var(--muted);padding:0.6rem 0.75rem;border-bottom:2px solid var(--border);
+  font-weight:600;
+}
+td { padding:0.65rem 0.75rem;border-bottom:1px solid var(--border);vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--surface2); }
+.td-product { font-weight:600;color:var(--ink); }
+.td-mono { font-family:var(--font-mono);font-size:0.8rem; }
+.rank-badge {
+  width:22px;height:22px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:0.65rem;font-weight:700;background:var(--surface2);color:var(--muted);
+}
+.rank-badge.top { background:var(--accent);color:#fff; }
+
+/* ── TREND BARS ── */
+.trend-item { display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.9rem; }
+.trend-item:last-child { margin-bottom:0; }
+.trend-row { display:flex;justify-content:space-between;align-items:center;font-size:0.78rem; }
+.trend-name { font-weight:500; }
+.trend-val { font-family:var(--font-mono);font-size:0.75rem;color:var(--muted); }
+.trend-bar-bg { height:6px;background:var(--surface2);border-radius:99px;overflow:hidden; }
+.trend-bar-fill { height:100%;border-radius:99px;transition:width 0.8s ease; }
+
+/* ── REGION PIE WRAPPER ── */
+.region-legend { display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem; }
+.legend-row { display:flex;align-items:center;gap:0.5rem;font-size:0.78rem; }
+.legend-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
+.legend-name { flex:1; }
+.legend-pct { font-family:var(--font-mono);font-size:0.72rem;color:var(--muted); }
+
+/* ── PLACEHOLDER ── */
+.placeholder {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;min-height:160px;color:var(--muted);text-align:center;gap:0.5rem;
+}
+.placeholder-icon { font-size:2.5rem;opacity:0.3; }
+.placeholder-text { font-size:0.82rem;opacity:0.6; }
+
+/* ── MONTH TABS ── */
+.month-tabs { display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.75rem; }
+.mtab {
+  padding:0.25rem 0.65rem;border-radius:999px;font-size:0.72rem;font-weight:500;
+  border:1px solid var(--border);background:transparent;cursor:pointer;
+  transition:all 0.2s;color:var(--muted);
+}
+.mtab.active { background:var(--ink);color:#fff;border-color:var(--ink); }
+.mtab:hover:not(.active) { border-color:var(--muted); }
+
+/* ── FOOTER ── */
+.dash-footer {
+  display:flex;justify-content:space-between;align-items:center;
+  padding-top:1rem;border-top:1px solid var(--border);
+  font-size:0.72rem;color:var(--muted);flex-wrap:wrap;gap:0.5rem;
+}
+
+/* ── TOAST ── */
+.toast {
+  position:fixed;bottom:2rem;right:2rem;z-index:999;
+  background:var(--ink);color:#fff;padding:0.75rem 1.25rem;
+  border-radius:10px;font-size:0.82rem;font-weight:500;
+  box-shadow:0 8px 24px rgba(0,0,0,0.2);
+  animation:toastIn 0.3s ease;pointer-events:none;
+}
+@keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+@media(max-width:900px) {
+  .app { grid-template-columns:1fr; }
+  .sidebar { position:static;height:auto; }
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+  .charts-grid { grid-template-columns:1fr; }
+  .bottom-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">S</div>
+      <div class="brand-name">Sales<span>IQ</span></div>
+    </div>
+
+    <!-- Add Product -->
+    <div>
+      <div class="sidebar-label">Add Product Entry</div>
+      <div class="form-section">
+        <div class="input-row">
+          <div class="input-label">Product Name</div>
+          <input type="text" id="inp-name" placeholder="e.g. Wireless Headphones"/>
+        </div>
+        <div class="input-row">
+          <div class="input-label">Category</div>
+          <select id="inp-cat">
+            <option value="Electronics">Electronics</option>
+            <option value="Clothing">Clothing</option>
+            <option value="Food & Beverage">Food & Beverage</option>
+            <option value="Home & Living">Home & Living</option>
+            <option value="Software">Software</option>
+            <option value="Services">Services</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="input-row">
+          <div class="input-label">Unit Price (₹)</div>
+          <input type="number" id="inp-price" placeholder="e.g. 2999" min="0"/>
+        </div>
+        <div class="input-row">
+          <div class="input-label">Region</div>
+          <select id="inp-region">
+            <option value="North">North</option>
+            <option value="South">South</option>
+            <option value="East">East</option>
+            <option value="West">West</option>
+            <option value="Central">Central</option>
+            <option value="International">International</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Sales -->
+    <div>
+      <div class="sidebar-label">Monthly Units Sold</div>
+      <div class="month-grid" id="month-inputs"></div>
+    </div>
+
+    <button class="btn-add" id="btn-add">＋ Add to Dashboard</button>
+
+    <!-- Product List -->
+    <div>
+      <div class="sidebar-label" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Products (<span id="prod-count">0</span>)</span>
+        <button class="btn-clear" id="btn-clear">Clear All</button>
+      </div>
+      <div class="product-list" id="product-list">
+        <div class="empty-state">No products yet.<br/>Add your first product above.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto;padding-top:1rem;border-top:1px solid #2a2520;">
+      <div style="font-size:0.7rem;color:#4a4540;line-height:1.6">
+        💡 Add multiple products to see comparative analytics, trends, and revenue breakdowns update in real time.
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="main">
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <div>
+        <div class="page-title">Sales <span>Analytics</span></div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-top:0.2rem">Live dashboard · updates as you add products</div>
+      </div>
+      <div class="topbar-right">
+        <div class="timestamp" id="timestamp">—</div>
+        <button class="btn-export" onclick="exportCSV()">↓ Export CSV</button>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Revenue</div>
+        <div class="kpi-value" id="kpi-revenue">₹0</div>
+        <div class="kpi-sub" id="kpi-rev-sub">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Units Sold</div>
+        <div class="kpi-value" id="kpi-units">0</div>
+        <div class="kpi-sub" id="kpi-units-sub">across all products</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Best Seller</div>
+        <div class="kpi-value" id="kpi-best" style="font-size:1rem;margin-top:0.3rem">—</div>
+        <div class="kpi-sub" id="kpi-best-sub">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg. Order Value</div>
+        <div class="kpi-value" id="kpi-aov">₹0</div>
+        <div class="kpi-sub" id="kpi-aov-sub">per unit sold</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Monthly Revenue Trend</div>
+        <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Sales by Category</div>
+        <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="bottom-grid">
+
+      <!-- Product comparison bar -->
+      <div class="chart-card">
+        <div class="chart-title">Units Sold by Product</div>
+        <div class="chart-wrap"><canvas id="prodChart"></canvas></div>
+      </div>
+
+      <!-- Top products table -->
+      <div class="chart-card">
+        <div class="chart-title">Product Performance</div>
+        <div class="table-wrap" id="perf-table">
+          <div class="placeholder">
+            <div class="placeholder-icon">📋</div>
+            <div class="placeholder-text">Add products to see performance table</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Regional breakdown -->
+      <div class="chart-card">
+        <div class="chart-title">Revenue by Region</div>
+        <div id="region-section">
+          <div class="placeholder">
+            <div class="placeholder-icon">🗺</div>
+            <div class="placeholder-text">Add products to see regional breakdown</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="dash-footer">
+      <span>SalesIQ Analytics Dashboard · Built with HTML, CSS & Chart.js</span>
+      <span id="footer-count">0 products · ₹0 total revenue</span>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  DATA STORE
+// ══════════════════════════════════════════
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const COLORS = ['#c84b31','#e8a838','#2d6a4f','#3a6186','#7b5ea7','#c8963b','#1a7a6e','#c84b6e'];
+const REGION_COLORS = { North:'#c84b31', South:'#e8a838', East:'#2d6a4f', West:'#3a6186', Central:'#7b5ea7', International:'#1a7a6e' };
+
+let products = [];
+let revenueChart = null, catChart = null, prodChart = null;
+
+// ══════════════════════════════════════════
+//  INIT MONTH INPUTS
+// ══════════════════════════════════════════
+function buildMonthInputs() {
+  const grid = document.getElementById('month-inputs');
+  grid.innerHTML = '';
+  MONTHS.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'month-item';
+    div.innerHTML = `<label>${m}</label><input type="number" id="m-${m}" placeholder="0" min="0"/>`;
+    grid.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════
+//  ADD PRODUCT
+// ══════════════════════════════════════════
+document.getElementById('btn-add').addEventListener('click', () => {
+  const name   = document.getElementById('inp-name').value.trim();
+  const cat    = document.getElementById('inp-cat').value;
+  const price  = parseFloat(document.getElementById('inp-price').value);
+  const region = document.getElementById('inp-region').value;
+
+  if (!name) { showToast('⚠️ Enter a product name'); return; }
+  if (!price || price <= 0) { showToast('⚠️ Enter a valid unit price'); return; }
+
+  const monthly = MONTHS.map(m => parseInt(document.getElementById('m-'+m).value) || 0);
+  const totalUnits = monthly.reduce((a,b) => a+b, 0);
+
+  if (totalUnits === 0) { showToast('⚠️ Enter at least one month\'s sales'); return; }
+
+  const product = {
+    id: Date.now(),
+    name, cat, price, region, monthly,
+    totalUnits,
+    revenue: totalUnits * price,
+    color: COLORS[products.length % COLORS.length]
+  };
+
+  products.push(product);
+  clearInputs();
+  renderAll();
+  showToast(`✅ "${name}" added!`);
+});
+
+function clearInputs() {
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-price').value = '';
+  MONTHS.forEach(m => { document.getElementById('m-'+m).value = ''; });
+}
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (products.length === 0) return;
+  products = [];
+  renderAll();
+  showToast('🗑 All products cleared');
+});
+
+// ══════════════════════════════════════════
+//  REMOVE PRODUCT
+// ══════════════════════════════════════════
+function removeProduct(id) {
+  products = products.filter(p => p.id !== id);
+  renderAll();
+  showToast('Product removed');
+}
+
+// ══════════════════════════════════════════
+//  RENDER ALL
+// ══════════════════════════════════════════
+function renderAll() {
+  renderSidebar();
+  renderKPIs();
+  renderRevenueChart();
+  renderCatChart();
+  renderProdChart();
+  renderTable();
+  renderRegion();
+  updateFooter();
+}
+
+// ── Sidebar product list
+function renderSidebar() {
+  const list = document.getElementById('product-list');
+  document.getElementById('prod-count').textContent = products.length;
+
+  if (products.length === 0) {
+    list.innerHTML = '<div class="empty-state">No products yet.<br/>Add your first product above.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  products.forEach(p => {
+    const pill = document.createElement('div');
+    pill.className = 'product-pill';
+    pill.innerHTML = `
+      <div>
+        <div class="pill-name">${p.name}</div>
+        <div class="pill-meta">${p.cat} · ${p.region} · ₹${p.price.toLocaleString()}/unit</div>
+      </div>
+      <button class="pill-del" onclick="removeProduct(${p.id})">✕</button>
+    `;
+    list.appendChild(pill);
+  });
+}
+
+// ── KPI Cards
+function renderKPIs() {
+  if (products.length === 0) {
+    document.getElementById('kpi-revenue').textContent = '₹0';
+    document.getElementById('kpi-rev-sub').textContent = '—';
+    document.getElementById('kpi-units').textContent = '0';
+    document.getElementById('kpi-units-sub').textContent = 'across all products';
+    document.getElementById('kpi-best').textContent = '—';
+    document.getElementById('kpi-best-sub').textContent = '—';
+    document.getElementById('kpi-aov').textContent = '₹0';
+    return;
+  }
+
+  const totalRev   = products.reduce((a,p) => a + p.revenue, 0);
+  const totalUnits = products.reduce((a,p) => a + p.totalUnits, 0);
+  const best       = [...products].sort((a,b) => b.revenue - a.revenue)[0];
+  const aov        = totalUnits > 0 ? totalRev / totalUnits : 0;
+
+  document.getElementById('kpi-revenue').textContent  = '₹' + fmt(totalRev);
+  document.getElementById('kpi-rev-sub').textContent  = `${products.length} product${products.length>1?'s':''}`;
+  document.getElementById('kpi-units').textContent    = totalUnits.toLocaleString();
+  document.getElementById('kpi-units-sub').textContent= `across ${products.length} product${products.length>1?'s':''}`;
+  document.getElementById('kpi-best').textContent     = best.name;
+  document.getElementById('kpi-best-sub').textContent = `₹${fmt(best.revenue)} revenue`;
+  document.getElementById('kpi-aov').textContent      = '₹' + fmt(Math.round(aov));
+  document.getElementById('kpi-aov-sub').textContent  = 'per unit sold';
+}
+
+// ── Revenue Trend Chart (stacked by product, monthly)
+function renderRevenueChart() {
+  if (revenueChart) revenueChart.destroy();
+  const ctx = document.getElementById('revenueChart').getContext('2d');
+
+  if (products.length === 0) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    drawPlaceholder(ctx, '📈 Add products to see revenue trend');
+    return;
+  }
+
+  const datasets = products.map(p => ({
+    label: p.name,
+    data: p.monthly.map(u => u * p.price),
+    borderColor: p.color,
+    backgroundColor: p.color + '22',
+    borderWidth: 2,
+    pointRadius: 4,
+    pointBackgroundColor: p.color,
+    tension: 0.4,
+    fill: products.length === 1
+  }));
+
+  revenueChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: MONTHS, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color:'#8a8279', font:{family:'Epilogue',size:10}, boxWidth:10, padding:12 } },
+        tooltip: { backgroundColor:'#1a1714', titleColor:'#e8e4df', bodyColor:'#8a8279', borderColor:'#3a3530', borderWidth:1,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ₹${fmt(Math.round(ctx.raw))}` }
+        }
+      },
+      scales: {
+        x: { grid:{color:'rgba(0,0,0,0.05)'}, ticks:{color:'#8a8279',font:{family:'Epilogue',size:10}} },
+        y: { grid:{color:'rgba(0,0,0,0.05)'}, ticks:{color:'#8a8279',font:{family:'Epilogue',size:10}, callback: v=>'₹'+fmt(v)} }
+      }
+    }
+  });
+}
+
+// ── Category Donut Chart
+function renderCatChart() {
+  if (catChart) catChart.destroy();
+  const ctx = document.getElementById('catChart').getContext('2d');
+
+  if (products.length === 0) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    drawPlaceholder(ctx, '🥧 Add products to see categories');
+    return;
+  }
+
+  const catMap = {};
+  products.forEach(p => { catMap[p.cat] = (catMap[p.cat] || 0) + p.revenue; });
+  const labels = Object.keys(catMap);
+  const data   = labels.map(l => catMap[l]);
+  const colors = COLORS.slice(0, labels.length);
+
+  catChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 3, hoverOffset: 8 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: {
+        legend: { position:'bottom', labels:{ color:'#8a8279', font:{family:'Epilogue',size:10}, boxWidth:10, padding:10 } },
+        tooltip: { backgroundColor:'#1a1714', titleColor:'#e8e4df', bodyColor:'#8a8279', borderColor:'#3a3530', borderWidth:1,
+          callbacks: { label: ctx => ` ₹${fmt(Math.round(ctx.raw))}` }
+        }
+      }
+    }
+  });
+}
+
+// ── Product Bar Chart
+function renderProdChart() {
+  if (prodChart) prodChart.destroy();
+  const ctx = document.getElementById('prodChart').getContext('2d');
+
+  if (products.length === 0) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    drawPlaceholder(ctx, '📊 Add products to compare units sold');
+    return;
+  }
+
+  const sorted = [...products].sort((a,b) => b.totalUnits - a.totalUnits);
+
+  prodChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(p => p.name.length > 12 ? p.name.slice(0,12)+'…' : p.name),
+      datasets: [{
+        label: 'Units Sold',
+        data: sorted.map(p => p.totalUnits),
+        backgroundColor: sorted.map(p => p.color + 'cc'),
+        borderColor: sorted.map(p => p.color),
+        borderWidth: 2,
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: products.length > 4 ? 'y' : 'x',
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor:'#1a1714', titleColor:'#e8e4df', bodyColor:'#8a8279', borderColor:'#3a3530', borderWidth:1 }
+      },
+      scales: {
+        x: { grid:{color:'rgba(0,0,0,0.05)'}, ticks:{color:'#8a8279',font:{family:'Epilogue',size:10}} },
+        y: { grid:{color:'rgba(0,0,0,0.05)'}, ticks:{color:'#8a8279',font:{family:'Epilogue',size:10}} }
+      }
+    }
+  });
+}
+
+// ── Performance Table
+function renderTable() {
+  const wrap = document.getElementById('perf-table');
+  if (products.length === 0) {
+    wrap.innerHTML = '<div class="placeholder"><div class="placeholder-icon">📋</div><div class="placeholder-text">Add products to see performance table</div></div>';
+    return;
+  }
+
+  const sorted = [...products].sort((a,b) => b.revenue - a.revenue);
+  const maxRev = sorted[0].revenue;
+
+  let html = `<table>
+    <thead><tr>
+      <th>#</th><th>Product</th><th>Units</th><th>Revenue</th><th>Share</th>
+    </tr></thead><tbody>`;
+
+  const totalRev = products.reduce((a,p) => a+p.revenue, 0);
+
+  sorted.forEach((p, i) => {
+    const share = totalRev > 0 ? ((p.revenue / totalRev) * 100).toFixed(1) : 0;
+    html += `<tr>
+      <td><span class="rank-badge ${i===0?'top':''}">${i+1}</span></td>
+      <td><span class="td-product">${p.name}</span><br/><span style="font-size:0.7rem;color:var(--muted)">${p.cat} · ${p.region}</span></td>
+      <td class="td-mono">${p.totalUnits.toLocaleString()}</td>
+      <td class="td-mono">₹${fmt(p.revenue)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:0.4rem">
+          <div style="flex:1;height:5px;background:var(--surface2);border-radius:99px;overflow:hidden;min-width:40px">
+            <div style="height:100%;width:${share}%;background:${p.color};border-radius:99px"></div>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted)">${share}%</span>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── Regional Breakdown
+function renderRegion() {
+  const sec = document.getElementById('region-section');
+  if (products.length === 0) {
+    sec.innerHTML = '<div class="placeholder"><div class="placeholder-icon">🗺</div><div class="placeholder-text">Add products to see regional breakdown</div></div>';
+    return;
+  }
+
+  const regionMap = {};
+  products.forEach(p => { regionMap[p.region] = (regionMap[p.region] || 0) + p.revenue; });
+  const total = Object.values(regionMap).reduce((a,b) => a+b, 0);
+  const sorted = Object.entries(regionMap).sort((a,b) => b[1]-a[1]);
+  const maxVal = sorted[0][1];
+
+  let html = '';
+  sorted.forEach(([region, rev]) => {
+    const pct = total > 0 ? ((rev/total)*100).toFixed(1) : 0;
+    const color = REGION_COLORS[region] || '#8a8279';
+    html += `<div class="trend-item">
+      <div class="trend-row">
+        <span class="trend-name">${region}</span>
+        <span class="trend-val">₹${fmt(rev)} · ${pct}%</span>
+      </div>
+      <div class="trend-bar-bg">
+        <div class="trend-bar-fill" style="width:${(rev/maxVal*100).toFixed(1)}%;background:${color}"></div>
+      </div>
+    </div>`;
+  });
+
+  sec.innerHTML = html;
+}
+
+function updateFooter() {
+  const totalRev = products.reduce((a,p) => a+p.revenue, 0);
+  document.getElementById('footer-count').textContent =
+    `${products.length} product${products.length!==1?'s':''} · ₹${fmt(totalRev)} total revenue`;
+}
+
+// ══════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════
+function fmt(n) {
+  if (n >= 1e7) return (n/1e7).toFixed(2) + 'Cr';
+  if (n >= 1e5) return (n/1e5).toFixed(2) + 'L';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+
+function drawPlaceholder(ctx, text) {
+  ctx.font = '13px Epilogue, sans-serif';
+  ctx.fillStyle = '#c8c4bf';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, ctx.canvas.width/2, ctx.canvas.height/2);
+}
+
+function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function exportCSV() {
+  if (products.length === 0) { showToast('⚠️ No data to export'); return; }
+  let csv = 'Product,Category,Region,Unit Price,Total Units,Total Revenue\n';
+  products.forEach(p => {
+    csv += `"${p.name}","${p.cat}","${p.region}",${p.price},${p.totalUnits},${p.revenue}\n`;
+  });
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'salesiq-export.csv';
+  a.click();
+  showToast('✅ CSV exported!');
+}
+
+// Timestamp
+function tick() {
+  document.getElementById('timestamp').textContent =
+    new Date().toLocaleString('en-IN', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+tick(); setInterval(tick, 60000);
+
+// ══════════════════════════════════════════
+//  PRELOAD DEMO DATA (optional, removable)
+// ══════════════════════════════════════════
+function loadDemoData() {
+  const demos = [
+    { name:'Wireless Headphones', cat:'Electronics', price:2999, region:'South',
+      monthly:[12,15,18,22,19,25,30,28,35,40,38,45] },
+    { name:'Cotton T-Shirt', cat:'Clothing', price:599, region:'North',
+      monthly:[50,45,60,80,90,110,95,85,70,55,65,120] },
+    { name:'Smart Watch', cat:'Electronics', price:8499, region:'West',
+      monthly:[5,8,10,12,15,18,22,20,25,30,28,35] },
+    { name:'Premium Coffee', cat:'Food & Beverage', price:399, region:'South',
+      monthly:[80,75,90,85,100,110,105,120,115,130,125,140] },
+  ];
+  demos.forEach((d,i) => {
+    const totalUnits = d.monthly.reduce((a,b)=>a+b,0);
+    products.push({ id:Date.now()+i, name:d.name, cat:d.cat, price:d.price,
+      region:d.region, monthly:d.monthly, totalUnits,
+      revenue:totalUnits*d.price, color:COLORS[i%COLORS.length] });
+  });
+  renderAll();
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+buildMonthInputs();
+loadDemoData(); // Comment this out to start with empty dashboard
+</script>
+</body>
+</html>
